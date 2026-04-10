@@ -3,57 +3,81 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Solar Granulation Simulation (HLSL -> WebGL)</title>
+    <title>Solar Granulation | UE 5.7 Procedural Demo</title>
     <style>
-        body { margin: 0; padding: 0; overflow: hidden; background: #050505; color: #eee; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { margin: 0; padding: 0; overflow: hidden; background: #050505; color: #eee; font-family: 'Segoe UI', Tahoma, sans-serif; }
         canvas { display: block; width: 100vw; height: 100vh; }
         
-        /* UI Panel Styles */
+        /* Floating & Collapsible UI */
         #ui-panel {
-            position: absolute; top: 20px; right: 20px;
-            width: 300px; background: rgba(15, 15, 15, 0.9);
-            padding: 20px; border-radius: 12px;
+            position: absolute; top: 20px; left: 20px;
+            width: 280px; background: rgba(10, 10, 10, 0.9);
+            padding: 0; border-radius: 12px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.7);
-            z-index: 10; border: 1px solid #444;
+            z-index: 100; border: 1px solid #333;
             backdrop-filter: blur(5px);
+            transition: transform 0.3s ease, opacity 0.3s ease;
         }
-        #ui-panel h2 { margin-top: 0; font-size: 20px; color: #ffaa00; letter-spacing: 1px; }
-        #ui-panel p { font-size: 13px; color: #888; margin-bottom: 20px; line-height: 1.4; }
-        .control-group { margin-bottom: 16px; }
-        .control-group label { display: block; font-size: 12px; text-transform: uppercase; margin-bottom: 6px; display: flex; justify-content: space-between; color: #ccc; }
-        .control-group label span.value { color: #ffaa00; font-family: monospace; font-size: 14px; }
-        .control-group input[type=range] { width: 100%; cursor: pointer; accent-color: #ffaa00; }
+        #ui-panel.minimized { transform: translateX(-300px); opacity: 0; pointer-events: none; }
         
-        .footer { margin-top: 10px; font-size: 11px; color: #555; border-top: 1px solid #333; padding-top: 10px; text-align: center; }
+        .ui-header { padding: 15px 20px; border-bottom: 1px solid #222; display: flex; justify-content: space-between; align-items: center; }
+        .ui-header h2 { margin: 0; font-size: 14px; color: #ffaa00; text-transform: uppercase; letter-spacing: 1px; }
+        
+        #ui-toggle-btn {
+            position: absolute; top: 20px; left: 20px;
+            width: 40px; height: 40px; background: #ffaa00;
+            border: none; border-radius: 8px; cursor: pointer;
+            z-index: 101; display: none; align-items: center; justify-content: center;
+            box-shadow: 0 4px 15px rgba(255,170,0,0.3);
+        }
+        #ui-toggle-btn.visible { display: flex; }
+
+        .close-btn { background: none; border: none; color: #666; cursor: pointer; font-size: 18px; }
+        .close-btn:hover { color: #fff; }
+
+        .ui-content { padding: 20px; }
+        
+        .control-group { margin-bottom: 15px; }
+        .control-group label { display: flex; justify-content: space-between; font-size: 11px; color: #aaa; margin-bottom: 5px; text-transform: uppercase; }
+        .control-group label span.value { color: #ffaa00; font-family: monospace; font-size: 13px; }
+        input[type=range] { width: 100%; cursor: pointer; accent-color: #ffaa00; margin: 0; }
+
+        .footer { padding: 10px 20px; font-size: 10px; color: #444; text-align: center; border-top: 1px solid #222; }
     </style>
 </head>
 <body>
 
-    <div id="ui-panel">
-        <h2>Solar Granulation</h2>
-        <p>Real-time plasma convection simulation based on HLSL procedural noise logic.</p>
-        
-        <div class="control-group">
-            <label>Granule Scale <span id="val-granuleScale" class="value">1.0</span></label>
-            <input type="range" id="granuleScale" min="0.5" max="5.0" step="0.01" value="1.0">
-        </div>
-        
-        <div class="control-group">
-            <label>Warp Amount <span id="val-warpAmount" class="value">0.18</span></label>
-            <input type="range" id="warpAmount" min="0.0" max="1.0" step="0.01" value="0.18">
-        </div>
-        
-        <div class="control-group">
-            <label>Boil Speed <span id="val-boilSpeed" class="value">1.0</span></label>
-            <input type="range" id="boilSpeed" min="0.0" max="4.0" step="0.01" value="1.0">
-        </div>
-        
-        <div class="control-group">
-            <label>Cell Exponent (k) <span id="val-cellExponent" class="value">2.5</span></label>
-            <input type="range" id="cellExponent" min="1.0" max="5.0" step="0.01" value="2.5">
-        </div>
+    <button id="ui-toggle-btn" onclick="toggleUI()">⚙️</button>
 
-        <div class="footer">UE 5.7 Procedural Workflow Demo</div>
+    <div id="ui-panel">
+        <div class="ui-header">
+            <h2>Granulation Settings</h2>
+            <button class="close-btn" onclick="toggleUI()">×</button>
+        </div>
+        <div class="ui-content">
+            
+            <div class="control-group">
+                <label>Granule Scale <span id="val-granuleScale" class="value">1.0</span></label>
+                <input type="range" id="granuleScale" min="0.5" max="5.0" step="0.01" value="1.0">
+            </div>
+            
+            <div class="control-group">
+                <label>Warp Amount <span id="val-warpAmount" class="value">0.18</span></label>
+                <input type="range" id="warpAmount" min="0.0" max="1.0" step="0.01" value="0.18">
+            </div>
+            
+            <div class="control-group">
+                <label>Boil Speed <span id="val-boilSpeed" class="value">1.0</span></label>
+                <input type="range" id="boilSpeed" min="0.0" max="4.0" step="0.01" value="1.0">
+            </div>
+            
+            <div class="control-group">
+                <label>Cell Exponent (k) <span id="val-cellExponent" class="value">2.5</span></label>
+                <input type="range" id="cellExponent" min="1.0" max="5.0" step="0.01" value="2.5">
+            </div>
+
+        </div>
+        <div class="footer">UE 5.7 Procedural Demo • STEP 2</div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -62,6 +86,14 @@
         // --- GLOBAL VARIABLES ---
         let scene, camera, renderer, mesh, material;
         const startTime = Date.now();
+
+        // UI Toggle Logic
+        function toggleUI() {
+            const panel = document.getElementById('ui-panel');
+            const btn = document.getElementById('ui-toggle-btn');
+            panel.classList.toggle('minimized');
+            btn.classList.toggle('visible');
+        }
 
         // --- SHADERS (GLSL) ---
         const _VS = `
@@ -182,7 +214,6 @@
         // --- APP INITIALIZATION ---
         function init() {
             scene = new THREE.Scene();
-            // Using a simple camera for a full-screen quad
             camera = new THREE.Camera(); 
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -190,7 +221,6 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
             document.body.appendChild(renderer.domElement);
 
-            // Full-screen plane
             const geometry = new THREE.PlaneBufferGeometry(2, 2);
             
             material = new THREE.ShaderMaterial({
@@ -236,7 +266,6 @@
             });
         }
 
-        // Start the engine
         init();
     </script>
 </body>
