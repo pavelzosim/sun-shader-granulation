@@ -1,84 +1,79 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Симуляция Солнечной Грануляции (HLSL -> WebGL)</title>
+    <title>Solar Granulation Simulation (HLSL -> WebGL)</title>
     <style>
-        body { margin: 0; padding: 0; overflow: hidden; background: #111; color: #eee; font-family: sans-serif; }
+        body { margin: 0; padding: 0; overflow: hidden; background: #050505; color: #eee; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         canvas { display: block; width: 100vw; height: 100vh; }
         
-        /* Стили для панели управления */
+        /* UI Panel Styles */
         #ui-panel {
-            position: absolute; top: 10px; right: 10px;
-            width: 280px; background: rgba(0, 0, 0, 0.85);
-            padding: 15px; border-radius: 8px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
-            z-index: 10; border: 1px solid #333;
+            position: absolute; top: 20px; right: 20px;
+            width: 300px; background: rgba(15, 15, 15, 0.9);
+            padding: 20px; border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+            z-index: 10; border: 1px solid #444;
+            backdrop-filter: blur(5px);
         }
-        #ui-panel h2 { margin-top: 0; font-size: 18px; text-align: center; color: #ffaa00; }
-        #ui-panel p { font-size: 12px; color: #aaa; margin-bottom: 15px; text-align: center; }
-        .control-group { margin-bottom: 12px; }
-        .control-group label { display: block; font-size: 13px; margin-bottom: 4px; display: flex; justify-content: space-between; }
-        .control-group label span.value { color: #ffcc00; font-weight: bold; }
+        #ui-panel h2 { margin-top: 0; font-size: 20px; color: #ffaa00; letter-spacing: 1px; }
+        #ui-panel p { font-size: 13px; color: #888; margin-bottom: 20px; line-height: 1.4; }
+        .control-group { margin-bottom: 16px; }
+        .control-group label { display: block; font-size: 12px; text-transform: uppercase; margin-bottom: 6px; display: flex; justify-content: space-between; color: #ccc; }
+        .control-group label span.value { color: #ffaa00; font-family: monospace; font-size: 14px; }
         .control-group input[type=range] { width: 100%; cursor: pointer; accent-color: #ffaa00; }
+        
+        .footer { margin-top: 10px; font-size: 11px; color: #555; border-top: 1px solid #333; padding-top: 10px; text-align: center; }
     </style>
 </head>
 <body>
 
     <div id="ui-panel">
-        <h2>Солнечная Грануляция</h2>
-        <p>Математика из HLSL .ush блока, перенесенная в WebGL.<br>Показывает физику конвекции плазмы.</p>
+        <h2>Solar Granulation</h2>
+        <p>Real-time plasma convection simulation based on HLSL procedural noise logic.</p>
         
         <div class="control-group">
-            <label>Масштаб гранул (Scale): <span id="val-granuleScale" class="value">1.0</span></label>
+            <label>Granule Scale <span id="val-granuleScale" class="value">1.0</span></label>
             <input type="range" id="granuleScale" min="0.5" max="5.0" step="0.01" value="1.0">
         </div>
         
         <div class="control-group">
-            <label>Сила искажения (Warp): <span id="val-warpAmount" class="value">0.18</span></label>
+            <label>Warp Amount <span id="val-warpAmount" class="value">0.18</span></label>
             <input type="range" id="warpAmount" min="0.0" max="1.0" step="0.01" value="0.18">
         </div>
         
         <div class="control-group">
-            <label>Скорость кипения (Speed): <span id="val-boilSpeed" class="value">1.0</span></label>
+            <label>Boil Speed <span id="val-boilSpeed" class="value">1.0</span></label>
             <input type="range" id="boilSpeed" min="0.0" max="4.0" step="0.01" value="1.0">
         </div>
         
         <div class="control-group">
-            <label>Степень формы ячеек (k): <span id="val-cellExponent" class="value">2.5</span></label>
+            <label>Cell Exponent (k) <span id="val-cellExponent" class="value">2.5</span></label>
             <input type="range" id="cellExponent" min="1.0" max="5.0" step="0.01" value="2.5">
         </div>
+
+        <div class="footer">UE 5.7 Procedural Workflow Demo</div>
     </div>
 
-    <script async src="https://unpkg.com/es-module-shims@1.8.0/dist/es-module-shims.js"></script>
-    <script type="importmap">
-    {
-        "imports": {
-            "three": "https://unpkg.com/three@0.156.1/build/three.module.js"
-        }
-    }
-    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
-    <script type="module">
-        import * as THREE from 'three';
-
-        // --- ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ---
+    <script>
+        // --- GLOBAL VARIABLES ---
         let scene, camera, renderer, mesh, material;
-        let startTime = Date.now();
+        const startTime = Date.now();
 
-        // --- ШЕЙДЕРЫ (GLSL) ---
-        // Вертексный шейдер (просто выводит плоскость на весь экран)
+        // --- SHADERS (GLSL) ---
         const _VS = `
             varying vec2 vUv;
             void main() {
                 vUv = uv;
-                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                gl_Position = vec4(position, 1.0);
             }
         `;
 
-        // Фрагментный шейдер (основная математика грануляции)
         const _FS = `
+            precision highp float;
             uniform float time;
             uniform float granuleScale;
             uniform float warpAmount;
@@ -86,16 +81,16 @@
             uniform float cellExponent;
             varying vec2 vUv;
 
-            // --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ШУМА (аналог SunCommon.ush) ---
-            // Псевдо-Curl шум на основе Simplex (упрощенный для 2D демки)
+            // Simple hash for noise generation
             vec2 hash22(vec2 p) {
                 p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));
                 return -1.0 + 2.0 * fract(sin(p) * 43758.5453123);
             }
 
+            // Simplex-like noise for Curl effect
             float noise(vec2 p) {
-                const float K1 = 0.366025404; // (sqrt(3)-1)/2
-                const float K2 = 0.211324865; // (3-sqrt(3))/6
+                const float K1 = 0.366025404;
+                const float K2 = 0.211324865;
                 vec2 i = floor(p + (p.x + p.y) * K1);
                 vec2 a = p - i + (i.x + i.y) * K2;
                 vec2 o = (a.x > a.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
@@ -106,15 +101,16 @@
                 return dot(n, vec3(70.0));
             }
 
+            // 2D Curl Noise for domain warping (plasma advection)
             vec2 curlNoise(vec2 p) {
                 const float e = 0.01;
                 float n = noise(p);
                 float dx = (noise(p + vec2(e, 0.0)) - n) / e;
                 float dy = (noise(p + vec2(0.0, e)) - n) / e;
-                return vec2(dy, -dx); // Curl в 2D - это ротация градиента
+                return vec2(dy, -dx);
             }
 
-            // Клеточный шум Вороного (F1 и F2)
+            // Voronoi F1/F2 for cellular structure
             vec2 voronoi(vec2 p) {
                 vec2 i = floor(p);
                 vec2 f = fract(p);
@@ -124,10 +120,10 @@
                     for (int x = -1; x <= 1; x++) {
                         vec2 g = vec2(float(x), float(y));
                         vec2 o = hash22(i + g);
-                        // Анимация точек внутри ячеек (кипение)
+                        // Animate cell centers (boiling effect)
                         o = 0.5 + 0.5 * sin(time * boilSpeed * 1.5 + 6.2831 * o);
                         vec2 r = g + o - f;
-                        float d = dot(r, r); // Квадрат дистанции (дешевле)
+                        float d = dot(r, r);
 
                         if (d < F1) {
                             F2 = F1;
@@ -137,71 +133,66 @@
                         }
                     }
                 }
-                return sqrt(vec2(F1, F2)); // Возвращаем реальную дистанцию
+                return sqrt(vec2(F1, F2));
             }
 
-            // Цветовой маппинг (Тепловая карта Солнца)
+            // Blackbody approximation gradient
             vec3 getSunColor(float t) {
-                // Плавный переход: черный -> темно-красный -> оранжевый -> желтый -> белый
-                vec3 c1 = vec3(0.1, 0.0, 0.0); // Lanes (границы)
-                vec3 c2 = vec3(1.0, 0.2, 0.0); // Глубина
-                vec3 c3 = vec3(1.0, 0.7, 0.1); // Поверхность
-                vec3 c4 = vec3(1.0, 1.0, 0.9); // Горячие центры
+                t = clamp(t, 0.0, 1.0);
+                vec3 c1 = vec3(0.08, 0.0, 0.0); // Intergranular lanes (dark)
+                vec3 c2 = vec3(1.0, 0.25, 0.0); // Mid plasma
+                vec3 c3 = vec3(1.0, 0.75, 0.1); // Surface hot
+                vec3 c4 = vec3(1.0, 1.0, 0.95); // Peak hot (granule centers)
                 
-                t = saturate(t);
-                vec3 color = mix(c1, c2, smoothstep(0.0, 0.3, t));
-                color = mix(color, c3, smoothstep(0.3, 0.7, t));
-                color = mix(color, c4, smoothstep(0.7, 1.0, t));
+                vec3 color = mix(c1, c2, smoothstep(0.0, 0.25, t));
+                color = mix(color, c3, smoothstep(0.25, 0.6, t));
+                color = mix(color, c4, smoothstep(0.6, 1.0, t));
                 return color;
             }
 
-            // --- ОСНОВНОЙ ЦИКЛ ---
             void main() {
-                // Центрируем UV и масштабируем
+                // Adjust UV for aspect ratio and scaling
                 vec2 p = (vUv - 0.5) * 15.0 * granuleScale;
 
-                // 1. Domain Warp (Адвекция плазмы) - CurlNoise
-                vec2 warpP = p * 0.4 + time * boilSpeed * 0.3;
+                // 1. Plasma Advection (Domain Warp)
+                vec2 warpP = p * 0.4 + time * boilSpeed * 0.2;
                 vec2 curl = curlNoise(warpP);
                 vec2 warpedP = p + curl * warpAmount;
 
-                // 2. Клеточный шум Вороного (F1=центр, F2=ближайшая граница)
-                // Диагональный дрейф для хаоса (как в HLSL блоке)
+                // 2. Procedural Boiling (Animated Voronoi)
                 float tOffset = time * boilSpeed * 0.1;
                 vec2 finalP = warpedP + vec2(tOffset * 0.7, tOffset * 0.3);
-                vec2 voroData = voronoi(finalP);
-                float F1 = voroData.x;
-                float F2 = voroData.y;
+                vec2 vData = voronoi(finalP);
+                float F1 = vData.x;
+                float F2 = vData.y;
 
-                // 3. Формообразование (Профиль температуры) - pow(1-F1, k)
-                // Центр = 1, Края = 0. pow() "сплющивает" центры.
+                // 3. Shape Profiling (Photospheric Granulation)
+                // pow(1.0 - F1, k) creates flat tops and narrow lanes
                 float cell = pow(max(1.0 - F1, 0.0), cellExponent);
 
-                // 4. Добавляем свечение в разломы (Lane glow) - F2-F1
-                float lane = saturate((F2 - F1) * 3.5);
+                // 4. Intergranular lane glow enhancement
+                float lane = clamp((F2 - F1) * 3.0, 0.0, 1.0);
                 
-                // Итоговая яркость [0.0...1.0+]
-                float bright = cell + lane * 0.08;
+                float finalBright = cell + lane * 0.05;
 
-                // Применяем цветовой маппинг
-                gl_FragColor = vec4(getSunColor(bright), 1.0);
+                gl_FragColor = vec4(getSunColor(finalBright), 1.0);
             }
         `;
 
-        // --- ИНИЦИАЛИЗАЦИЯ THREE.JS ---
+        // --- APP INITIALIZATION ---
         function init() {
             scene = new THREE.Scene();
-            camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1); // 2D камера
+            // Using a simple camera for a full-screen quad
+            camera = new THREE.Camera(); 
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setPixelRatio(window.devicePixelRatio);
             renderer.setSize(window.innerWidth, window.innerHeight);
             document.body.appendChild(renderer.domElement);
 
-            // Создаем плоскость на весь экран
-            const geometry = new THREE.PlaneGeometry(2, 2);
+            // Full-screen plane
+            const geometry = new THREE.PlaneBufferGeometry(2, 2);
             
-            // Настраиваем ShaderMaterial с юниформами
             material = new THREE.ShaderMaterial({
                 uniforms: {
                     time: { value: 0 },
@@ -217,9 +208,7 @@
             mesh = new THREE.Mesh(geometry, material);
             scene.add(mesh);
 
-            // Обработка изменения размера окна
             window.addEventListener('resize', onWindowResize, false);
-            
             setupUI();
             animate();
         }
@@ -228,31 +217,26 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
         }
 
-        // --- ЦИКЛ АНИМАЦИИ ---
         function animate() {
             requestAnimationFrame(animate);
-            // Передаем время в шейдер
             material.uniforms.time.value = (Date.now() - startTime) * 0.001;
             renderer.render(scene, camera);
         }
 
-        // --- НАСТРОЙКА ПАНЕЛИ УПРАВЛЕНИЯ (UI) ---
         function setupUI() {
-            const controls = ['granuleScale', 'warpAmount', 'boilSpeed', 'cellExponent'];
-            
-            controls.forEach(id => {
-                const input = document.getElementById(id);
-                const valueDisplay = document.getElementById(`val-${id}`);
-                
-                input.addEventListener('input', (e) => {
+            const params = ['granuleScale', 'warpAmount', 'boilSpeed', 'cellExponent'];
+            params.forEach(id => {
+                const el = document.getElementById(id);
+                const display = document.getElementById('val-' + id);
+                el.addEventListener('input', (e) => {
                     const val = parseFloat(e.target.value);
-                    valueDisplay.innerText = val.toFixed(2); // Обновляем текст в UI
-                    material.uniforms[id].value = val;       // Обновляем юниформ в шейдере
+                    display.innerText = val.toFixed(2);
+                    material.uniforms[id].value = val;
                 });
             });
         }
 
-        // Запуск test
+        // Start the engine
         init();
     </script>
 </body>
