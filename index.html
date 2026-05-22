@@ -4,90 +4,285 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Solar Granulation | UE 5.7 Procedural Demo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
     <style>
-        body { margin: 0; padding: 0; overflow: hidden; background: #050505; color: #eee; font-family: 'Segoe UI', Tahoma, sans-serif; }
-        canvas { display: block; width: 100vw; height: 100vh; }
-        
-        /* Floating & Collapsible UI */
+        /* ══════════════════════════════════════════════════════════
+           DOS CORE CONFIGURATION & RESET (VOLKOV STYLE)
+           ══════════════════════════════════════════════════════════ */
+        :root {
+            /* Фирменная палитра Atlas / DOS */
+            --dos-bg: rgb(230, 220, 210);       /* Серый бумажно-инженерный фон [cite: 16] */
+            --dos-ink: #000000;                 /* Черный текст и сплошные рамки [cite: 16] */
+            --dos-crit: #8b0000;                /* Акцентный маркер (бордовый) [cite: 16] */
+            --dos-warn: #7a5200;                /* Темно-желтый для значений [cite: 16] */
+            --dos-border: rgba(0,0,0,0.4);      /* Четкая внутренняя рамка [cite: 16] */
+        }
+
+        * { 
+            box-sizing: border-box !important; 
+        }
+
+        body { 
+            margin: 0; 
+            padding: 0; 
+            overflow: hidden; 
+            background: #050505; 
+            color: var(--dos-ink);
+            /* Один шрифт на весь контейнер, как в DOS [cite: 7, 82] */
+            font-family: 'JetBrains Mono', 'Courier New', monospace; 
+            font-size: 12.5px; /* --fs-body [cite: 21] */
+            -webkit-font-smoothing: none; /* Отключаем сглаживание для пиксельного эффекта */
+            -moz-osx-font-smoothing: none;
+        }
+
+        canvas { 
+            display: block; 
+            width: 100vw; 
+            height: 100vh; 
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        /* ══════════════════════════════════════════════════════════
+           COMMANDER UI PANEL BLOCK
+           ══════════════════════════════════════════════════════════ */
+        #ui-container {
+            position: absolute;
+            top: 25px; /* --atlas-space-md [cite: 18] */
+            left: 25px;
+            z-index: 100;
+            width: 310px;
+            pointer-events: none;
+        }
+
         #ui-panel {
-            position: absolute; top: 20px; left: 20px;
-            width: 280px; background: rgba(10, 10, 10, 0.9);
-            padding: 0; border-radius: 12px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.7);
-            z-index: 100; border: 1px solid #333;
-            backdrop-filter: blur(5px);
-            transition: transform 0.3s ease, opacity 0.3s ease;
+            pointer-events: auto;
+            background: var(--dos-bg); /* [cite: 16] */
+            border: 1px solid var(--dos-ink); /* Строгая рамка без скруглений [cite: 16, 53] */
+            padding: 0;
+            margin: 0;
+            box-shadow: none; /* Никаких современных теней и размытий  */
+            /* Дискретная ступенчатая анимация терминала */
+            transition: transform 0.15s steps(3), opacity 0.15s ease;
         }
-        #ui-panel.minimized { transform: translateX(-300px); opacity: 0; pointer-events: none; }
+
+        /* Мгновенное скрытие панели влево без сглаживания */
+        #ui-panel.minimized { 
+            transform: translateX(-340px); 
+            opacity: 0; 
+            pointer-events: none; 
+        }
         
-        .ui-header { padding: 15px 20px; border-bottom: 1px solid #222; display: flex; justify-content: space-between; align-items: center; }
-        .ui-header h2 { margin: 0; font-size: 14px; color: #ffaa00; text-transform: uppercase; letter-spacing: 1px; }
+        /* Верхняя сплошная шапка утилиты (Инвертированная строка) */
+        .ui-header { 
+            background: var(--dos-ink); 
+            color: var(--dos-bg); 
+            padding: 6px 12px; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            font-weight: bold;
+        }
         
+        .ui-header h2 { 
+            margin: 0; 
+            font-size: 12px; /* --fs-code [cite: 21] */
+            text-transform: uppercase; 
+            letter-spacing: 0.5px;
+        }
+        
+        /* Кнопка триггера [ SHOW_PANEL ] */
         #ui-toggle-btn {
-            position: absolute; top: 20px; left: 20px;
-            width: 40px; height: 40px; background: #ffaa00;
-            border: none; border-radius: 8px; cursor: pointer;
-            z-index: 101; display: none; align-items: center; justify-content: center;
-            box-shadow: 0 4px 15px rgba(255,170,0,0.3);
+            pointer-events: auto;
+            position: absolute;
+            top: 0;
+            left: 0;
+            background: var(--dos-ink);
+            color: var(--dos-bg);
+            border: 1px solid var(--dos-ink);
+            padding: 6px 12px;
+            font-family: inherit;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            display: none;
+            text-transform: uppercase;
         }
-        #ui-toggle-btn.visible { display: flex; }
+        #ui-toggle-btn:hover {
+            background: var(--dos-bg);
+            color: var(--dos-ink);
+        }
+        #ui-toggle-btn.visible { 
+            display: block; 
+        }
 
-        .close-btn { background: none; border: none; color: #666; cursor: pointer; font-size: 18px; }
-        .close-btn:hover { color: #fff; }
+        /* Текстовый олдскульный крестик закрытия */
+        .close-btn { 
+            background: none; 
+            border: none; 
+            color: var(--dos-bg); 
+            cursor: pointer; 
+            font-family: inherit;
+            font-size: 12.5px; 
+            font-weight: bold;
+            padding: 0;
+        }
+        .close-btn:hover { 
+            color: var(--dos-crit); 
+        }
 
-        .ui-content { padding: 20px; }
+        /* Контентная область параметров */
+        .ui-content { 
+            padding: 15px; /* --atlas-space-sm [cite: 18] */
+            border-bottom: 1px solid var(--dos-border); /* [cite: 16] */
+        }
         
-        .control-group { margin-bottom: 15px; }
-        .control-group label { display: flex; justify-content: space-between; font-size: 11px; color: #aaa; margin-bottom: 5px; text-transform: uppercase; }
-        .control-group label span.value { color: #ffaa00; font-family: monospace; font-size: 13px; }
-        input[type=range] { width: 100%; cursor: pointer; accent-color: #ffaa00; margin: 0; }
+        .control-group { 
+            margin-bottom: 15px; 
+        }
+        .control-group:last-child {
+            margin-bottom: 0;
+        }
 
-        .footer { padding: 10px 20px; font-size: 10px; color: #444; text-align: center; border-top: 1px solid #222; }
+        /* Оформление строк параметров с терминальным указателем */
+        .control-group label { 
+            display: flex; 
+            justify-content: space-between; 
+            font-size: 12px; /* --fs-code [cite: 21] */
+            color: var(--dos-ink); 
+            margin-bottom: 6px; 
+            text-transform: uppercase; 
+        }
+
+        .control-group label::before {
+            content: "→ "; /* Маркер уровня в стиле CAD-систем [cite: 79] */
+            color: var(--dos-crit);
+            font-weight: bold;
+            margin-right: 4px;
+        }
+        
+        .control-group label .param-title {
+            flex-grow: 1;
+        }
+
+        .control-group label span.value { 
+            color: var(--dos-warn); /* Выделение числовых констант [cite: 16] */
+            font-weight: bold; 
+            font-size: 12px; 
+        }
+
+        /* ══════════════════════════════════════════════════════════
+           HARDCORE TEXT-TERMINAL SLIDER DEF
+           ══════════════════════════════════════════════════════════ */
+        input[type=range] { 
+            -webkit-appearance: none;
+            width: 100%; 
+            background: transparent; 
+            margin: 0; 
+            padding: 0;
+            cursor: pointer; 
+        }
+        input[type=range]:focus {
+            outline: none;
+        }
+
+        /* Направляющая линия ползунка (Тонкая ось) */
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 2px;
+            background: var(--dos-ink);
+            border: none;
+        }
+        /* Прямоугольный Ползунок (Никаких кругов, чистый блочный маркер DOS) */
+        input[type=range]::-webkit-slider-thumb {
+            height: 12px;
+            width: 6px;
+            background: var(--dos-ink);
+            border: none;
+            border-radius: 0 !important; /* Убираем скругления [cite: 7] */
+            -webkit-appearance: none;
+            margin-top: -5px;
+        }
+
+        /* Поддержка Firefox */
+        input[type=range]::-moz-range-track {
+            width: 100%;
+            height: 2px;
+            background: var(--dos-ink);
+            border: none;
+        }
+        input[type=range]::-moz-range-thumb {
+            height: 12px;
+            width: 6px;
+            background: var(--dos-ink);
+            border: none;
+            border-radius: 0 !important;
+        }
+
+        /* Подвал панели с системной информацией */
+        .footer { 
+            padding: 8px 15px; 
+            font-size: 10px; /* --fs-meta [cite: 21] */
+            color: rgba(0,0,0,0.5); /* --atlas-ink-muted [cite: 16] */
+            text-align: left; 
+            line-height: 1.4;
+            background: rgba(0,0,0,0.02); /* --atlas-bg-alt [cite: 16] */
+        }
     </style>
 </head>
 <body>
 
-    <button id="ui-toggle-btn" onclick="toggleUI()">⚙️</button>
+    <canvas id="webgl-canvas"></canvas>
 
-    <div id="ui-panel">
-        <div class="ui-header">
-            <h2>Granulation Settings</h2>
-            <button class="close-btn" onclick="toggleUI()">×</button>
-        </div>
-        <div class="ui-content">
-            
-            <div class="control-group">
-                <label>Granule Scale <span id="val-granuleScale" class="value">1.0</span></label>
-                <input type="range" id="granuleScale" min="0.5" max="5.0" step="0.01" value="1.0">
-            </div>
-            
-            <div class="control-group">
-                <label>Warp Amount <span id="val-warpAmount" class="value">0.18</span></label>
-                <input type="range" id="warpAmount" min="0.0" max="1.0" step="0.01" value="0.18">
-            </div>
-            
-            <div class="control-group">
-                <label>Boil Speed <span id="val-boilSpeed" class="value">1.0</span></label>
-                <input type="range" id="boilSpeed" min="0.0" max="4.0" step="0.01" value="1.0">
-            </div>
-            
-            <div class="control-group">
-                <label>Cell Exponent (k) <span id="val-cellExponent" class="value">2.5</span></label>
-                <input type="range" id="cellExponent" min="1.0" max="5.0" step="0.01" value="2.5">
-            </div>
+    <div id="ui-container">
+        
+        <button id="ui-toggle-btn" onclick="toggleUI()">[ VC://SHOW_PANEL ]</button>
 
+        <div id="ui-panel">
+            <div class="ui-header">
+                <h2>Granulation Settings</h2>
+                <button class="close-btn" onclick="toggleUI()">[X]</button>
+            </div>
+            <div class="ui-content">
+                
+                <div class="control-group">
+                    <label><span class="param-title">Granule Scale</span><span id="val-granuleScale" class="value">1.00</span></label>
+                    <input type="range" id="granuleScale" min="0.5" max="5.0" step="0.01" value="1.00">
+                </div>
+                
+                <div class="control-group">
+                    <label><span class="param-title">Warp Amount</span><span id="val-warpAmount" class="value">0.18</span></label>
+                    <input type="range" id="warpAmount" min="0.0" max="1.0" step="0.01" value="0.18">
+                </div>
+                
+                <div class="control-group">
+                    <label><span class="param-title">Boil Speed</span><span id="val-boilSpeed" class="value">1.00</span></label>
+                    <input type="range" id="boilSpeed" min="0.0" max="4.0" step="0.01" value="1.00">
+                </div>
+                
+                <div class="control-group">
+                    <label><span class="param-title">Cell Exponent (k)</span><span id="val-cellExponent" class="value">2.50</span></label>
+                    <input type="range" id="cellExponent" min="1.0" max="5.0" step="0.01" value="2.50">
+                </div>
+
+            </div>
+            <div class="footer">
+                // INDEX: pavelzosim.com<br>
+                // SRC: SunGranulation.ush [UE 5.7]
+            </div>
         </div>
-        <div class="footer"> • by pavelzosim.com • Based on SunGranulation.ush [UE 5.7]</div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-
     <script>
-        // --- GLOBAL VARIABLES ---
         let scene, camera, renderer, mesh, material;
         const startTime = Date.now();
 
-        // UI Toggle Logic
         function toggleUI() {
             const panel = document.getElementById('ui-panel');
             const btn = document.getElementById('ui-toggle-btn');
@@ -95,7 +290,6 @@
             btn.classList.toggle('visible');
         }
 
-        // --- SHADERS (GLSL) ---
         const _VS = `
             varying vec2 vUv;
             void main() {
@@ -113,13 +307,11 @@
             uniform float cellExponent;
             varying vec2 vUv;
 
-            // Simple hash for noise generation
             vec2 hash22(vec2 p) {
                 p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));
                 return -1.0 + 2.0 * fract(sin(p) * 43758.5453123);
             }
 
-            // Simplex-like noise for Curl effect
             float noise(vec2 p) {
                 const float K1 = 0.366025404;
                 const float K2 = 0.211324865;
@@ -133,7 +325,6 @@
                 return dot(n, vec3(70.0));
             }
 
-            // 2D Curl Noise for domain warping (plasma advection)
             vec2 curlNoise(vec2 p) {
                 const float e = 0.01;
                 float n = noise(p);
@@ -142,7 +333,6 @@
                 return vec2(dy, -dx);
             }
 
-            // Voronoi F1/F2 for cellular structure
             vec2 voronoi(vec2 p) {
                 vec2 i = floor(p);
                 vec2 f = fract(p);
@@ -152,7 +342,6 @@
                     for (int x = -1; x <= 1; x++) {
                         vec2 g = vec2(float(x), float(y));
                         vec2 o = hash22(i + g);
-                        // Animate cell centers (boiling effect)
                         o = 0.5 + 0.5 * sin(time * boilSpeed * 1.5 + 6.2831 * o);
                         vec2 r = g + o - f;
                         float d = dot(r, r);
@@ -168,13 +357,12 @@
                 return sqrt(vec2(F1, F2));
             }
 
-            // Blackbody approximation gradient
             vec3 getSunColor(float t) {
                 t = clamp(t, 0.0, 1.0);
-                vec3 c1 = vec3(0.08, 0.0, 0.0); // Intergranular lanes (dark)
-                vec3 c2 = vec3(1.0, 0.25, 0.0); // Mid plasma
-                vec3 c3 = vec3(1.0, 0.75, 0.1); // Surface hot
-                vec3 c4 = vec3(1.0, 1.0, 0.95); // Peak hot (granule centers)
+                vec3 c1 = vec3(0.08, 0.0, 0.0); 
+                vec3 c2 = vec3(1.0, 0.25, 0.0); 
+                vec3 c3 = vec3(1.0, 0.75, 0.1); 
+                vec3 c4 = vec3(1.0, 1.0, 0.95); 
                 
                 vec3 color = mix(c1, c2, smoothstep(0.0, 0.25, t));
                 color = mix(color, c3, smoothstep(0.25, 0.6, t));
@@ -183,45 +371,35 @@
             }
 
             void main() {
-                // Adjust UV for aspect ratio and scaling
                 vec2 p = (vUv - 0.5) * 15.0 * granuleScale;
-
-                // 1. Plasma Advection (Domain Warp)
                 vec2 warpP = p * 0.4 + time * boilSpeed * 0.2;
                 vec2 curl = curlNoise(warpP);
                 vec2 warpedP = p + curl * warpAmount;
 
-                // 2. Procedural Boiling (Animated Voronoi)
                 float tOffset = time * boilSpeed * 0.1;
                 vec2 finalP = warpedP + vec2(tOffset * 0.7, tOffset * 0.3);
                 vec2 vData = voronoi(finalP);
                 float F1 = vData.x;
                 float F2 = vData.y;
 
-                // 3. Shape Profiling (Photospheric Granulation)
-                // pow(1.0 - F1, k) creates flat tops and narrow lanes
                 float cell = pow(max(1.0 - F1, 0.0), cellExponent);
-
-                // 4. Intergranular lane glow enhancement
                 float lane = clamp((F2 - F1) * 3.0, 0.0, 1.0);
-                
                 float finalBright = cell + lane * 0.05;
 
                 gl_FragColor = vec4(getSunColor(finalBright), 1.0);
             }
         `;
 
-        // --- APP INITIALIZATION ---
         function init() {
             scene = new THREE.Scene();
             camera = new THREE.Camera(); 
 
-            renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.setPixelRatio(window.devicePixelRatio);
+            const canvasElement = document.getElementById('webgl-canvas');
+            renderer = new THREE.WebGLRenderer({ canvas: canvasElement, antialias: true });
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); 
             renderer.setSize(window.innerWidth, window.innerHeight);
-            document.body.appendChild(renderer.domElement);
 
-            const geometry = new THREE.PlaneBufferGeometry(2, 2);
+            const geometry = new THREE.PlaneGeometry(2, 2);
             
             material = new THREE.ShaderMaterial({
                 uniforms: {
