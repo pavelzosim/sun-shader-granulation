@@ -4,38 +4,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Solar Granulation | UE 5.7 Procedural Demo</title>
+    
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/pavelzosim/atlas-framework@1b94ccf8eceef058d93848d15ee6551dc61bdf26/cdn/atlas-framework.css">
+    
     <style>
-        /* ══════════════════════════════════════════════════════════
-           DOS CORE CONFIGURATION & RESET (VOLKOV STYLE)
-           ══════════════════════════════════════════════════════════ */
-        :root {
-            /* Фирменная палитра Atlas / DOS */
-            --dos-bg: rgb(230, 220, 210);       /* Серый бумажно-инженерный фон [cite: 16] */
-            --dos-ink: #000000;                 /* Черный текст и сплошные рамки [cite: 16] */
-            --dos-crit: #8b0000;                /* Акцентный маркер (бордовый) [cite: 16] */
-            --dos-warn: #7a5200;                /* Темно-желтый для значений [cite: 16] */
-            --dos-border: rgba(0,0,0,0.4);      /* Четкая внутренняя рамка [cite: 16] */
-        }
-
-        * { 
-            box-sizing: border-box !important; 
-        }
-
         body { 
             margin: 0; 
             padding: 0; 
             overflow: hidden; 
             background: #050505; 
-            color: var(--dos-ink);
-            /* Один шрифт на весь контейнер, как в DOS [cite: 7, 82] */
-            font-family: 'JetBrains Mono', 'Courier New', monospace; 
-            font-size: 12.5px; /* --fs-body [cite: 21] */
-            -webkit-font-smoothing: none; /* Отключаем сглаживание для пиксельного эффекта */
-            -moz-osx-font-smoothing: none;
         }
 
         canvas { 
@@ -48,190 +29,29 @@
             z-index: 1;
         }
 
-        /* ══════════════════════════════════════════════════════════
-           COMMANDER UI PANEL BLOCK
-           ══════════════════════════════════════════════════════════ */
-        #ui-container {
+        .atlas-ui-wrapper {
             position: absolute;
-            top: 25px; /* --atlas-space-md [cite: 18] */
+            top: 25px;
             left: 25px;
             z-index: 100;
-            width: 310px;
+            width: 340px;
             pointer-events: none;
         }
 
-        #ui-panel {
+        .atlas-shader-panel {
             pointer-events: auto;
-            background: var(--dos-bg); /* [cite: 16] */
-            border: 1px solid var(--dos-ink); /* Строгая рамка без скруглений [cite: 16, 53] */
-            padding: 0;
-            margin: 0;
-            box-shadow: none; /* Никаких современных теней и размытий  */
-            /* Дискретная ступенчатая анимация терминала */
-            transition: transform 0.15s steps(3), opacity 0.15s ease;
         }
 
-        /* Мгновенное скрытие панели влево без сглаживания */
-        #ui-panel.minimized { 
-            transform: translateX(-340px); 
-            opacity: 0; 
-            pointer-events: none; 
-        }
-        
-        /* Верхняя сплошная шапка утилиты (Инвертированная строка) */
-        .ui-header { 
-            background: var(--dos-ink); 
-            color: var(--dos-bg); 
-            padding: 6px 12px; 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center; 
-            font-weight: bold;
-        }
-        
-        .ui-header h2 { 
-            margin: 0; 
-            font-size: 12px; /* --fs-code [cite: 21] */
-            text-transform: uppercase; 
-            letter-spacing: 0.5px;
-        }
-        
-        /* Кнопка триггера [ SHOW_PANEL ] */
-        #ui-toggle-btn {
-            pointer-events: auto;
-            position: absolute;
-            top: 0;
-            left: 0;
-            background: var(--dos-ink);
-            color: var(--dos-bg);
-            border: 1px solid var(--dos-ink);
-            padding: 6px 12px;
-            font-family: inherit;
-            font-size: 12px;
-            font-weight: bold;
+        /* Делаем заголовок кликабельным, чтобы разворачивать панель */
+        .atlas-shader-panel__header {
             cursor: pointer;
-            display: none;
-            text-transform: uppercase;
-        }
-        #ui-toggle-btn:hover {
-            background: var(--dos-bg);
-            color: var(--dos-ink);
-        }
-        #ui-toggle-btn.visible { 
-            display: block; 
+            user-select: none;
         }
 
-        /* Текстовый олдскульный крестик закрытия */
-        .close-btn { 
-            background: none; 
-            border: none; 
-            color: var(--dos-bg); 
-            cursor: pointer; 
-            font-family: inherit;
-            font-size: 12.5px; 
-            font-weight: bold;
-            padding: 0;
-        }
-        .close-btn:hover { 
-            color: var(--dos-crit); 
-        }
-
-        /* Контентная область параметров */
-        .ui-content { 
-            padding: 15px; /* --atlas-space-sm [cite: 18] */
-            border-bottom: 1px solid var(--dos-border); /* [cite: 16] */
-        }
-        
-        .control-group { 
-            margin-bottom: 15px; 
-        }
-        .control-group:last-child {
-            margin-bottom: 0;
-        }
-
-        /* Оформление строк параметров с терминальным указателем */
-        .control-group label { 
-            display: flex; 
-            justify-content: space-between; 
-            font-size: 12px; /* --fs-code [cite: 21] */
-            color: var(--dos-ink); 
-            margin-bottom: 6px; 
-            text-transform: uppercase; 
-        }
-
-        .control-group label::before {
-            content: "→ "; /* Маркер уровня в стиле CAD-систем [cite: 79] */
-            color: var(--dos-crit);
-            font-weight: bold;
-            margin-right: 4px;
-        }
-        
-        .control-group label .param-title {
-            flex-grow: 1;
-        }
-
-        .control-group label span.value { 
-            color: var(--dos-warn); /* Выделение числовых констант [cite: 16] */
-            font-weight: bold; 
-            font-size: 12px; 
-        }
-
-        /* ══════════════════════════════════════════════════════════
-           HARDCORE TEXT-TERMINAL SLIDER DEF
-           ══════════════════════════════════════════════════════════ */
-        input[type=range] { 
-            -webkit-appearance: none;
-            width: 100%; 
-            background: transparent; 
-            margin: 0; 
-            padding: 0;
-            cursor: pointer; 
-        }
-        input[type=range]:focus {
-            outline: none;
-        }
-
-        /* Направляющая линия ползунка (Тонкая ось) */
-        input[type=range]::-webkit-slider-runnable-track {
-            width: 100%;
-            height: 2px;
-            background: var(--dos-ink);
-            border: none;
-        }
-        /* Прямоугольный Ползунок (Никаких кругов, чистый блочный маркер DOS) */
-        input[type=range]::-webkit-slider-thumb {
-            height: 12px;
-            width: 6px;
-            background: var(--dos-ink);
-            border: none;
-            border-radius: 0 !important; /* Убираем скругления [cite: 7] */
-            -webkit-appearance: none;
-            margin-top: -5px;
-        }
-
-        /* Поддержка Firefox */
-        input[type=range]::-moz-range-track {
-            width: 100%;
-            height: 2px;
-            background: var(--dos-ink);
-            border: none;
-        }
-        input[type=range]::-moz-range-thumb {
-            height: 12px;
-            width: 6px;
-            background: var(--dos-ink);
-            border: none;
-            border-radius: 0 !important;
-        }
-
-        /* Подвал панели с системной информацией */
-        .footer { 
-            padding: 8px 15px; 
-            font-size: 10px; /* --fs-meta [cite: 21] */
-            color: rgba(0,0,0,0.5); /* --atlas-ink-muted [cite: 16] */
-            text-align: left; 
-            line-height: 1.4;
-            background: rgba(0,0,0,0.02); /* --atlas-bg-alt [cite: 16] */
+        /* Когда панель свернута — прячем тело и подвал */
+        .atlas-shader-panel.is-collapsed .atlas-shader-panel__body,
+        .atlas-shader-panel.is-collapsed .atlas-shader-panel__footer {
+            display: none !important;
         }
     </style>
 </head>
@@ -239,42 +59,77 @@
 
     <canvas id="webgl-canvas"></canvas>
 
-    <div id="ui-container">
-        
-        <button id="ui-toggle-btn" onclick="toggleUI()">[ VC://SHOW_PANEL ]</button>
+    <div class="atlas-container atlas-ui-wrapper">
+        <div class="atlas-shader-panel" id="ui-panel">
+            
+            <!-- Клик по хэдеру развернет панель обратно -->
+            <div class="atlas-shader-panel__header" id="ui-header" title="Click to expand">
+                <div class="atlas-shader-panel__title">Granulation Settings</div>
+                <div class="atlas-shader-panel__status">
+                    <div class="atlas-shader-panel__led"></div>
+                    ACTIVE
+                </div>
+            </div>
 
-        <div id="ui-panel">
-            <div class="ui-header">
-                <h2>Granulation Settings</h2>
-                <button class="close-btn" onclick="toggleUI()">[X]</button>
-            </div>
-            <div class="ui-content">
-                
-                <div class="control-group">
-                    <label><span class="param-title">Granule Scale</span><span id="val-granuleScale" class="value">1.00</span></label>
-                    <input type="range" id="granuleScale" min="0.5" max="5.0" step="0.01" value="1.00">
-                </div>
-                
-                <div class="control-group">
-                    <label><span class="param-title">Warp Amount</span><span id="val-warpAmount" class="value">0.18</span></label>
-                    <input type="range" id="warpAmount" min="0.0" max="1.0" step="0.01" value="0.18">
-                </div>
-                
-                <div class="control-group">
-                    <label><span class="param-title">Boil Speed</span><span id="val-boilSpeed" class="value">1.00</span></label>
-                    <input type="range" id="boilSpeed" min="0.0" max="4.0" step="0.01" value="1.00">
-                </div>
-                
-                <div class="control-group">
-                    <label><span class="param-title">Cell Exponent (k)</span><span id="val-cellExponent" class="value">2.50</span></label>
-                    <input type="range" id="cellExponent" min="1.0" max="5.0" step="0.01" value="2.50">
-                </div>
+            <div class="atlas-shader-panel__body">
+                <div class="atlas-shader-panel__block">
+                    <div class="atlas-shader-panel__block-title">
+                        Sun Surface Parameters
+                        <span class="atlas-shader-panel__block-hint">GLSL</span>
+                    </div>
 
+                    <div class="atlas-sp-grid">
+                        
+                        <div class="atlas-sp-prefix">val_</div>
+                        <div class="atlas-sp-label">GranuleScale</div>
+                        <div class="atlas-sp-value" id="val-granuleScale">1.00</div>
+                        <div class="atlas-sp-slider-wrap atlas-sp-row-full">
+                            <input type="range" class="atlas-sp-slider" id="granuleScale" min="0.5" max="5.0" step="0.01" value="1.00">
+                        </div>
+
+                        <div class="atlas-sp-prefix">val_</div>
+                        <div class="atlas-sp-label">WarpAmount</div>
+                        <div class="atlas-sp-value" id="val-warpAmount">0.18</div>
+                        <div class="atlas-sp-slider-wrap atlas-sp-row-full">
+                            <input type="range" class="atlas-sp-slider" id="warpAmount" min="0.0" max="1.0" step="0.01" value="0.18">
+                        </div>
+
+                        <div class="atlas-sp-prefix">val_</div>
+                        <div class="atlas-sp-label">BoilSpeed</div>
+                        <div class="atlas-sp-value" id="val-boilSpeed">1.00</div>
+                        <div class="atlas-sp-slider-wrap atlas-sp-row-full">
+                            <input type="range" class="atlas-sp-slider" id="boilSpeed" min="0.0" max="4.0" step="0.01" value="1.00">
+                        </div>
+
+                        <div class="atlas-sp-prefix">val_</div>
+                        <div class="atlas-sp-label">CellExponent</div>
+                        <div class="atlas-sp-value" id="val-cellExponent">2.50</div>
+                        <div class="atlas-sp-slider-wrap atlas-sp-row-full">
+                            <input type="range" class="atlas-sp-slider" id="cellExponent" min="1.0" max="5.0" step="0.01" value="2.50">
+                        </div>
+
+                    </div>
+                </div>
+                
+                <div class="atlas-sp-actions">
+                    <div class="atlas-sp-btn-wrap">
+                        <!-- ЗАМЕНИЛИ FLUSH НА КНОПКУ СВЕРНУТЬ -->
+                        <button class="atlas-sp-btn atlas-sp-btn--reset" id="collapse-btn">
+                            <span class="atlas-sp-btn__icon">⤌</span> Collapse Panel
+                        </button>
+                    </div>
+                </div>
             </div>
-            <div class="footer">
-                // INDEX: pavelzosim.com<br>
-                // SRC: SunGranulation.ush [UE 5.7]
+
+            <div class="atlas-shader-panel__footer">
+                <div class="atlas-shader-panel__footer-col">
+                    <div class="atlas-sp-meta-line"><span class="atlas-sp-meta-key">SRC:</span>SunGranulation.ush</div>
+                </div>
+                <div class="atlas-shader-panel__footer-col atlas-shader-panel__footer-col--right">
+                    <div class="atlas-sp-meta-line"><span class="atlas-sp-meta-key">ENV:</span>UE 5.7</div>
+                </div>
             </div>
+
         </div>
     </div>
 
@@ -282,13 +137,6 @@
     <script>
         let scene, camera, renderer, mesh, material;
         const startTime = Date.now();
-
-        function toggleUI() {
-            const panel = document.getElementById('ui-panel');
-            const btn = document.getElementById('ui-toggle-btn');
-            panel.classList.toggle('minimized');
-            btn.classList.toggle('visible');
-        }
 
         const _VS = `
             varying vec2 vUv;
@@ -441,6 +289,21 @@
                     display.innerText = val.toFixed(2);
                     material.uniforms[id].value = val;
                 });
+            });
+
+            // Логика сворачивания
+            const uiPanel = document.getElementById('ui-panel');
+            const collapseBtn = document.getElementById('collapse-btn');
+            const uiHeader = document.getElementById('ui-header');
+
+            // Кнопка снизу сворачивает panel
+            collapseBtn.addEventListener('click', () => {
+                uiPanel.classList.add('is-collapsed');
+            });
+
+            // Клик по шапке разворачивает её обратно
+            uiHeader.addEventListener('click', () => {
+                uiPanel.classList.remove('is-collapsed');
             });
         }
 
